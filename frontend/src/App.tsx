@@ -8,6 +8,8 @@ function App() {
   const [date, setDate] = useState<string>('2023-12-01');
   const [lat, setLat] = useState<number | null>(null);
   const [lon, setLon] = useState<number | null>(null);
+  const [latInput, setLatInput] = useState<string>('');
+  const [lonInput, setLonInput] = useState<string>('');
   const [iceData, setIceData] = useState<SeaIceData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,8 +39,42 @@ function App() {
       alert("Please select a location in the Antarctic region.");
       return;
     }
-    setLat(newLat);
-    setLon(newLon);
+    const formattedLat = parseFloat(newLat.toFixed(4));
+    const formattedLon = parseFloat(newLon.toFixed(4));
+    setLat(formattedLat);
+    setLon(formattedLon);
+    setLatInput(formattedLat.toString());
+    setLonInput(formattedLon.toString());
+  };
+
+  const handleLatChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLatInput(e.target.value);
+  };
+
+  const handleLonChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLonInput(e.target.value);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (latInput.trim() === '' || lonInput.trim() === '') {
+        return;
+      }
+      const parsedLat = parseFloat(latInput);
+      const parsedLon = parseFloat(lonInput);
+      
+      if (isNaN(parsedLat) || parsedLat < -90 || parsedLat > 90) {
+        alert("Please enter a valid latitude between -90 and 90.");
+        return;
+      }
+      if (isNaN(parsedLon) || parsedLon < -180 || parsedLon > 180) {
+        alert("Please enter a valid longitude between -180 and 180.");
+        return;
+      }
+      
+      setLat(parsedLat);
+      setLon(parsedLon);
+    }
   };
 
   return (
@@ -65,24 +101,48 @@ function App() {
         </div>
 
         <div className="input-group">
-          <label>
-            <MapPin size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-            Coordinates
-          </label>
-          {lat !== null && lon !== null ? (
-            <div className="coord-display">
-              <div className="coord-box">
-                <div className="coord-value">{Math.abs(lat).toFixed(2)}° {lat >= 0 ? 'N' : 'S'}</div>
-                <div className="coord-label">Latitude</div>
-              </div>
-              <div className="coord-box">
-                <div className="coord-value">{Math.abs(lon).toFixed(2)}° {lon >= 0 ? 'E' : 'W'}</div>
-                <div className="coord-label">Longitude</div>
-              </div>
+          <div className="coord-header-row">
+            <label>
+              <MapPin size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+              Coordinates
+            </label>
+            {lat !== null && lon !== null && (
+              <span className="coord-formatted-badge">
+                {Math.abs(lat).toFixed(2)}° {lat >= 0 ? 'N' : 'S'}, {Math.abs(lon).toFixed(2)}° {lon >= 0 ? 'E' : 'W'}
+              </span>
+            )}
+          </div>
+          <div className="coord-inputs">
+            <div className="coord-input-box">
+              <label htmlFor="lat-input" className="coord-label">Latitude (°S / °N)</label>
+              <input
+                id="lat-input"
+                type="number"
+                step="any"
+                className="coord-input"
+                placeholder="e.g. -75.25"
+                value={latInput}
+                onChange={handleLatChange}
+                onKeyDown={handleKeyDown}
+              />
             </div>
-          ) : (
-            <p className="instruction-text">Click anywhere on the map to select a location.</p>
-          )}
+            <div className="coord-input-box">
+              <label htmlFor="lon-input" className="coord-label">Longitude (°E / °W)</label>
+              <input
+                id="lon-input"
+                type="number"
+                step="any"
+                className="coord-input"
+                placeholder="e.g. 120.50"
+                value={lonInput}
+                onChange={handleLonChange}
+                onKeyDown={handleKeyDown}
+              />
+            </div>
+          </div>
+          {lat === null || lon === null ? (
+            <p className="instruction-text">Click on map or enter coordinates above.</p>
+          ) : null}
         </div>
 
         <div className="result-card">
