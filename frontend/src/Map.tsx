@@ -23,14 +23,16 @@ const DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 // Define EPSG:3031 - Antarctic Polar Stereographic
-// Coordinates bounds and extended resolutions for deep zoom capability
+// Coordinates bounds and extended resolutions:
+// Zoom 0 (16384 m/px) provides a full zoomed-out overview of the Antarctic polar circle.
+// Zoom 1 (8192 m/px) to Zoom 6+ provide high-detail deep zoom.
 const crs = new L.Proj.CRS(
   'EPSG:3031',
   '+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs',
   {
     origin: [-4194304, 4194304],
     resolutions: [
-      8192.0, 4096.0, 2048.0, 1024.0, 512.0, 256.0, 128.0, 64.0, 32.0, 16.0, 8.0, 4.0, 2.0
+      16384.0, 8192.0, 4096.0, 2048.0, 1024.0, 512.0, 256.0, 128.0, 64.0, 32.0, 16.0, 8.0, 4.0
     ],
     bounds: L.bounds(
       L.point(-4194304, -4194304),
@@ -74,14 +76,14 @@ function MapController() {
 
 function ResolutionBadge() {
   const map = useMap();
-  const [resText, setResText] = useState('8.19 km / px');
+  const [resText, setResText] = useState('16.38 km / px');
   const [zoomLevel, setZoomLevel] = useState(0);
 
   useEffect(() => {
     const updateResolution = () => {
       const z = map.getZoom();
       setZoomLevel(z);
-      const metersPerPx = 8192 / Math.pow(2, z);
+      const metersPerPx = 16384 / Math.pow(2, z);
       if (metersPerPx >= 1000) {
         setResText(`${(metersPerPx / 1000).toFixed(2)} km / pixel`);
       } else {
@@ -114,7 +116,7 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({ onLocationSelect, se
       crs={crs}
       style={{ height: '100%', width: '100%', background: '#020617' }}
       minZoom={0}
-      maxZoom={8}
+      maxZoom={10}
       zoomControl={true}
       scrollWheelZoom={true}
     >
@@ -126,9 +128,9 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({ onLocationSelect, se
       <TileLayer
         url="https://gibs.earthdata.nasa.gov/wmts/epsg3031/best/BlueMarble_ShadedRelief_Bathymetry/default/500m/{z}/{y}/{x}.jpeg"
         attribution="NASA EOSDIS GIBS"
-        tileSize={512}
+        tileSize={256}
         maxNativeZoom={4}
-        maxZoom={8}
+        maxZoom={10}
         minZoom={0}
         noWrap={true}
       />
@@ -137,9 +139,9 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({ onLocationSelect, se
         key={selectedDate}
         url={`https://gibs.earthdata.nasa.gov/wmts/epsg3031/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${selectedDate}/250m/{z}/{y}/{x}.jpg`}
         attribution="NASA EOSDIS GIBS"
-        tileSize={512}
-        maxNativeZoom={4}
-        maxZoom={8}
+        tileSize={256}
+        maxNativeZoom={5}
+        maxZoom={10}
         minZoom={0}
         opacity={0.8}
         noWrap={true}
