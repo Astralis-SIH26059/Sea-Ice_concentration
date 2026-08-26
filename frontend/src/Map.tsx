@@ -83,6 +83,7 @@ function ResolutionBadge() {
     const updateResolution = () => {
       const z = map.getZoom();
       setZoomLevel(z);
+      // Polar resolution
       const metersPerPx = 16384 / Math.pow(2, z);
       if (metersPerPx >= 1000) {
         setResText(`${(metersPerPx / 1000).toFixed(2)} km / pixel`);
