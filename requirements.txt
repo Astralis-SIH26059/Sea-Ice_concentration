@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+numpy
+xarray
+netCDF4
+pyproj
+pydantic
+scikit-learn
