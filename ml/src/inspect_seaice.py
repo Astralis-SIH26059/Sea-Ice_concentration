@@ -1,0 +1,22 @@
+import xarray as xr
+file_path = "data/raw/sic_pss25_20150101-20151231_v06r00.nc"
+print("Opening file...")
+ds = xr.open_dataset(file_path)
+print("File opened successfully!")
+print("\n========== CRS INFORMATION ==========")
+print(ds["crs"])
+print("\n========== CRS ATTRIBUTES ==========")
+for key, value in ds["crs"].attrs.items():
+    print(f"{key}: {value}")
+print("\n========== GRID INFORMATION ==========")
+print("Number of y coordinates:", len(ds.y))
+print("Number of x coordinates:", len(ds.x))
+print("First 5 y coordinates:")
+print(ds.y.values[:5])
+print("\nLast 5 y coordinates:")
+print(ds.y.values[-5:])
+print("\nFirst 5 x coordinates:")
+print(ds.x.values[:5])
+print("\nLast 5 x coordinates:")
+print(ds.x.values[-5:])
+print("\n========== CRS INSPECTION COMPLETE ==========")

@@ -23,9 +23,6 @@ const DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 // Define EPSG:3031 - Antarctic Polar Stereographic
-// Coordinates bounds and extended resolutions:
-// Zoom 0 (16384 m/px) provides a full zoomed-out overview of the Antarctic polar circle.
-// Zoom 1 (8192 m/px) to Zoom 6+ provide high-detail deep zoom.
 const crs = new L.Proj.CRS(
   'EPSG:3031',
   '+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs',
@@ -58,6 +55,16 @@ function LocationMarker({ onLocationSelect, selectedLat, selectedLon }: { onLoca
   return selectedLat !== null && selectedLon !== null ? (
     <Marker position={[selectedLat, selectedLon]} />
   ) : null;
+}
+
+function MapUpdater({ selectedLat, selectedLon }: { selectedLat: number | null; selectedLon: number | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (selectedLat !== null && selectedLon !== null && !isNaN(selectedLat) && !isNaN(selectedLon)) {
+      map.setView([selectedLat, selectedLon], map.getZoom(), { animate: true });
+    }
+  }, [selectedLat, selectedLon, map]);
+  return null;
 }
 
 function MapController() {
@@ -120,8 +127,11 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({ onLocationSelect, se
       maxZoom={10}
       zoomControl={true}
       scrollWheelZoom={true}
+      maxBounds={[[-140, -180], [-40, 180]]}
+      maxBoundsViscosity={1.0}
     >
       <MapController />
+      <MapUpdater selectedLat={selectedLat} selectedLon={selectedLon} />
       {/* Explicit km/pixel Resolution Scale Badge */}
       <ResolutionBadge />
       
