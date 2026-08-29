@@ -22,7 +22,7 @@ function App() {
         try {
           const data = await fetchSeaIceData(lat, lon, date);
           setIceData(data);
-        } catch (err) {
+        } catch (_err) {
           setError('Failed to fetch sea-ice data');
           setIceData(null);
         } finally {
@@ -65,6 +65,10 @@ function App() {
       
       if (isNaN(parsedLat) || parsedLat < -90 || parsedLat > 90) {
         alert("Please enter a valid latitude between -90 and 90.");
+        return;
+      }
+      if (parsedLat > -50) {
+        alert("Please select a location in the Antarctic region (latitude <= -50).");
         return;
       }
       if (isNaN(parsedLon) || parsedLon < -180 || parsedLon > 180) {
