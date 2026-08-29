@@ -127,6 +127,8 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({ onLocationSelect, se
       maxZoom={10}
       zoomControl={true}
       scrollWheelZoom={true}
+      maxBounds={[[-140, -180], [-40, 180]]}
+      maxBoundsViscosity={1.0}
     >
       <MapController />
       <MapUpdater selectedLat={selectedLat} selectedLon={selectedLon} />

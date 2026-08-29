@@ -8,9 +8,17 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Mount the local data folder to /data in the container
-      # This matches BASE_DIR / "data" since BASE_DIR resolves to / in the container
       - ./data:/data
+      - ./backend/models:/backend/models
     restart: unless-stopped
-    # environment:
-    #   - ENVIRONMENT=production
+    
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_BACKEND_URL=http://localhost:8000
+    restart: unless-stopped
+

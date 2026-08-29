@@ -6,3 +6,6 @@ netCDF4
 pyproj
 pydantic
 scikit-learn
+xgboost
+pandas
+joblib
