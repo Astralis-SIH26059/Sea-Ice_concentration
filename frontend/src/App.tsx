@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AntarcticMap } from './Map';
-import { fetchSeaIceData, type SeaIceData } from './api';
+import { fetchSeaIceData, fetchForecastData, type SeaIceData } from './api';
 import { MapPin, Calendar, Activity, Snowflake } from 'lucide-react';
 import './index.css';
 
@@ -11,6 +11,7 @@ function App() {
   const [latInput, setLatInput] = useState<string>('');
   const [lonInput, setLonInput] = useState<string>('');
   const [iceData, setIceData] = useState<SeaIceData | null>(null);
+  const [forecastData, setForecastData] = useState<SeaIceData[] | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,9 +23,12 @@ function App() {
         try {
           const data = await fetchSeaIceData(lat, lon, date);
           setIceData(data);
+          const fData = await fetchForecastData(lat, lon, date);
+          setForecastData(fData);
         } catch (_err) {
           setError('Failed to fetch sea-ice data');
           setIceData(null);
+          setForecastData(null);
         } finally {
           setLoading(false);
         }
@@ -172,7 +176,7 @@ function App() {
         </div>
       </div>
 
-      <div className="map-stage">
+      <div className="map-stage" style={{ flexDirection: 'column', gap: '2rem' }}>
         <div className="square-map-wrapper">
           <AntarcticMap
             onLocationSelect={handleLocationSelect}
@@ -181,6 +185,27 @@ function App() {
             selectedDate={date}
           />
         </div>
+        
+        {lat !== null && lon !== null && forecastData && forecastData.length > 0 && (
+          <div className="forecast-panel">
+            <div className="result-title" style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '1rem', textAlign: 'left' }}>
+              <Activity size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle', color: 'var(--accent-color)' }} />
+              3-Day Forecast
+            </div>
+            <div className="forecast-cards">
+              {forecastData.map((day, idx) => (
+                <div key={idx} className="forecast-card">
+                  <div className="forecast-date">
+                    {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </div>
+                  <div className="forecast-value">
+                    {day.concentration}%
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

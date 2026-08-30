@@ -45,3 +45,41 @@ export const fetchSeaIceData = async (lat: number, lon: number, date: string): P
     };
   }
 };
+
+export const fetchForecastData = async (lat: number, lon: number, startDate: string): Promise<SeaIceData[]> => {
+  const baseDate = new Date(startDate);
+  
+  const promises = [1, 2, 3].map(async (i) => {
+    const forecastDate = new Date(baseDate);
+    forecastDate.setDate(forecastDate.getDate() + i);
+    const dateStr = forecastDate.toISOString().split('T')[0];
+    
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/ice/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: dateStr, latitude: lat, longitude: lon, forecast_days: i })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          concentration: data.prediction_sea_ice_concentration,
+          date: data.requested_date,
+          lat: data.latitude,
+          lon: data.longitude,
+        };
+      }
+    } catch (e) {
+      console.error("Error fetching forecast for", dateStr, e);
+    }
+    return {
+      concentration: 0,
+      date: dateStr,
+      lat,
+      lon
+    };
+  });
+  
+  return Promise.all(promises);
+};
