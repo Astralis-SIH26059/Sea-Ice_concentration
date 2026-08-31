@@ -108,15 +108,15 @@ def lookup_concentration(requested_date, latitude, longitude):
     }
 
 @app.get("/")
-def root():
+async def root():
     return {"message": "Antarctic Sea-Ice API is running", "dataset": DATA_FILE.name, "docs": "/docs"}
 
 @app.get("/health")
-def health():
+async def health():
     return {"status": "ok", "dataset_available": DATA_FILE.exists(), "dataset": DATA_FILE.name}
 
 @app.get("/api/ice/concentration")
-def get_concentration(
+async def get_concentration(
     date: date = Query(..., description="YYYY-MM-DD"),
     latitude: float = Query(..., ge=-90, le=0),
     longitude: float = Query(..., ge=-180, le=180),
@@ -124,13 +124,13 @@ def get_concentration(
     return lookup_concentration(date, latitude, longitude)
 
 @app.post("/api/ice/concentration")
-def post_concentration(request: ConcentrationRequest):
+async def post_concentration(request: ConcentrationRequest):
     return lookup_concentration(request.date, request.latitude, request.longitude)
 
 
 
 @app.post("/api/ice/predict")
-def predict(request: PredictionRequest):
+async def predict(request: PredictionRequest):
     dataset = get_dataset()
     x, y = TO_POLAR.transform(request.longitude, request.latitude)
     
