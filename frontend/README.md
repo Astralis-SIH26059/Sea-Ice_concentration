@@ -1,32 +1,36 @@
-# React + TypeScript + Vite
+# Polaris - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+This is the frontend client for **Polaris**, an AI/ML-enabled decision support platform for Antarctic navigation and Sea-Ice Concentration (SIC) forecasting.
 
-Currently, two official plugins are available:
+## Technology Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Framework**: React 19 + TypeScript
+- **Build Tool**: Vite
+- **Styling**: Vanilla CSS featuring a premium dark, glassmorphic UI.
+- **Mapping**: Leaflet & React-Leaflet
+- **Projections**: Proj4js & Proj4Leaflet for EPSG:3031 (Antarctic Polar Stereographic)
+- **Icons**: Lucide React
 
-## React Compiler
+## Map Details
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The core mapping component visualizes the Antarctic region using custom coordinate reference systems. 
+Instead of the standard Web Mercator, it employs the EPSG:3031 Polar Stereographic projection to accurately render polar geometry.
+It stacks high-resolution base maps (bathymetry/terrain) with dynamic, true-color satellite imagery pulled in real-time from NASA EOSDIS GIBS.
 
-## Expanding the Oxlint configuration
+## UI Architecture
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+The frontend is divided into multiple sections managed by a central router:
+- **Landing Page**: Entry point displaying the core Polaris mission.
+- **SIC Forecast**: The Sea-Ice Concentration tool allowing coordinate-based queries and visual map selection.
+- **Icebergs / Path Prediction**: Upcoming tools integrated seamlessly into the navigation.
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+## Running Locally
+
+To run the frontend independently of Docker:
+
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Ensure the backend server is running and accessible (defaults to `http://localhost:8000`). This can be configured via the `VITE_BACKEND_URL` environment variable.
