@@ -34,7 +34,7 @@ body {
 
 .app-container {
   width: 100%;
-  min-height: 100vh;
+  min-height: calc(100vh - 70px);
   position: relative;
   background: radial-gradient(circle at 50% 50%, #0d223a 0%, #040914 100%);
   display: flex;
@@ -518,6 +518,9 @@ body {
 
 .main-content {
   min-height: 100vh;
+}
+
+.main-content.with-nav {
   padding-top: 70px;
 }
 
@@ -581,10 +584,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   padding: 2rem 4rem;
   gap: 4rem;
-  margin-top: -70px;
 }
 
 .landing-hero {
@@ -594,6 +595,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 1.5rem;
+  margin-top: 15vh;
   animation: slideUp 0.6s ease-out forwards;
 }
 
@@ -707,5 +709,30 @@ body {
 @media (max-width: 1024px) {
   .landing-cards {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .top-nav {
+    padding: 0 1rem;
+  }
+  .nav-brand span {
+    font-size: 1.2rem;
+  }
+  .nav-links {
+    gap: 0.5rem;
+  }
+  .nav-btn span {
+    display: none; /* Hide text on small screens, keep icons */
+  }
+  .nav-btn {
+    padding: 0.5rem;
+  }
+  .landing-container {
+    padding: 2rem 1rem;
+    gap: 2rem;
+  }
+  .hero-title {
+    font-size: 3.5rem;
   }
 }

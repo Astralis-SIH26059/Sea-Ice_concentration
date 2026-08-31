@@ -45,7 +45,7 @@ function App() {
         </nav>
       )}
 
-      <main className="main-content">
+      <main className={`main-content ${currentView !== 'landing' ? 'with-nav' : ''}`}>
         {currentView === 'landing' && <LandingPage onNavigate={setCurrentView} />}
         {currentView === 'sic' && <SICSection />}
         {currentView === 'iceberg' && <IcebergSection />}
