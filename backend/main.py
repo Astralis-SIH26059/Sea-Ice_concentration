@@ -1,4 +1,5 @@
-from datetime import date
+import datetime as dt
+from datetime import timedelta
 from pathlib import Path
 import numpy as np
 import xarray as xr
@@ -9,7 +10,19 @@ from pyproj import Transformer
 import xgboost as xgb
 import joblib
 import pandas as pd
-from datetime import timedelta
+
+try:
+    from iceberg_predict import (
+        predict_iceberg,
+        predict_iceberg_trajectory,
+        models_available as iceberg_models_available,
+    )
+except ImportError:
+    from backend.iceberg_predict import (
+        predict_iceberg,
+        predict_iceberg_trajectory,
+        models_available as iceberg_models_available,
+    )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_FILE = BASE_DIR / "data" / "raw" / "sic_pss25_20170101-20171231_v06r00.nc"
@@ -19,7 +32,7 @@ xgb_model = xgb.XGBRegressor()
 if MODEL_PATH.exists():
     xgb_model.load_model(str(MODEL_PATH))
 
-app = FastAPI(title="Antarctic Sea-Ice Backend", version="2.0.0")
+app = FastAPI(title="Polaris - Antarctic Decision Support Backend", version="2.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,12 +46,29 @@ TO_POLAR = Transformer.from_crs("EPSG:4326", "EPSG:3412", always_xy=True)
 ds = None
 
 class ConcentrationRequest(BaseModel):
-    date: date
+    date: dt.date
     latitude: float = Field(..., ge=-90, le=0)
     longitude: float = Field(..., ge=-180, le=180)
 
 class PredictionRequest(ConcentrationRequest):
     forecast_days: int = Field(default=1, ge=1, le=7)
+
+class IcebergPosition(BaseModel):
+    latitude: float = Field(..., ge=-90, le=0, description="Latitude in Antarctic region")
+    longitude: float = Field(..., ge=-180, le=180, description="Longitude")
+
+class IcebergPredictionRequest(BaseModel):
+    current: IcebergPosition
+    previous_1: IcebergPosition
+    previous_2: IcebergPosition
+    previous_3: IcebergPosition
+    previous_4: IcebergPosition
+    size: float = Field(default=100.0, ge=0.1, description="Iceberg surface size")
+    mask: float = Field(default=1.0, description="Iceberg mask category/flag")
+    date: dt.date = Field(default_factory=dt.date.today)
+    u10: float = Field(default=0.0, description="ERA5 10m U-wind component (m/s)")
+    v10: float = Field(default=0.0, description="ERA5 10m V-wind component (m/s)")
+    forecast_steps: int = Field(default=1, ge=1, le=5, description="Trajectory forecast days (1-5)")
 
 def get_dataset():
     global ds
@@ -113,11 +143,17 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "dataset_available": DATA_FILE.exists(), "dataset": DATA_FILE.name}
+    return {
+        "status": "ok",
+        "dataset_available": DATA_FILE.exists(),
+        "dataset": DATA_FILE.name,
+        "sic_model_available": MODEL_PATH.exists(),
+        "iceberg_models_available": iceberg_models_available(),
+    }
 
 @app.get("/api/ice/concentration")
 async def get_concentration(
-    date: date = Query(..., description="YYYY-MM-DD"),
+    date: dt.date = Query(..., description="YYYY-MM-DD"),
     latitude: float = Query(..., ge=-90, le=0),
     longitude: float = Query(..., ge=-180, le=180),
 ):
@@ -191,5 +227,74 @@ async def predict(request: PredictionRequest):
         "prediction_sea_ice_concentration": prediction_pct,
         "forecast_days": request.forecast_days
     }
+
+
+@app.post("/api/iceberg/predict")
+async def predict_iceberg_endpoint(request: IcebergPredictionRequest):
+    if not iceberg_models_available():
+        raise HTTPException(
+            status_code=503,
+            detail="Iceberg models (iceberg_wind_xgb_dx.json, iceberg_wind_xgb_dy.json) are not available on server.",
+        )
+
+    try:
+        if request.forecast_steps > 1:
+            result = predict_iceberg_trajectory(
+                current_lat=request.current.latitude,
+                current_lon=request.current.longitude,
+                previous_1_lat=request.previous_1.latitude,
+                previous_1_lon=request.previous_1.longitude,
+                previous_2_lat=request.previous_2.latitude,
+                previous_2_lon=request.previous_2.longitude,
+                previous_3_lat=request.previous_3.latitude,
+                previous_3_lon=request.previous_3.longitude,
+                previous_4_lat=request.previous_4.latitude,
+                previous_4_lon=request.previous_4.longitude,
+                size=request.size,
+                mask=request.mask,
+                datetime_value=str(request.date),
+                u10=request.u10,
+                v10=request.v10,
+                steps=request.forecast_steps,
+            )
+        else:
+            res = predict_iceberg(
+                current_lat=request.current.latitude,
+                current_lon=request.current.longitude,
+                previous_1_lat=request.previous_1.latitude,
+                previous_1_lon=request.previous_1.longitude,
+                previous_2_lat=request.previous_2.latitude,
+                previous_2_lon=request.previous_2.longitude,
+                previous_3_lat=request.previous_3.latitude,
+                previous_3_lon=request.previous_3.longitude,
+                previous_4_lat=request.previous_4.latitude,
+                previous_4_lon=request.previous_4.longitude,
+                size=request.size,
+                mask=request.mask,
+                datetime_value=str(request.date),
+                u10=request.u10,
+                v10=request.v10,
+            )
+            result = dict(res)
+            result["forecast_steps"] = 1
+            result["trajectory"] = [
+                {
+                    "step": 1,
+                    "date": str(request.date + timedelta(days=1)),
+                    "lat": res["predicted_lat"],
+                    "lon": res["predicted_lon"],
+                    "predicted_dx_km": res["predicted_dx_km"],
+                    "predicted_dy_km": res["predicted_dy_km"],
+                    "movement_km": res["predicted_movement_km"],
+                }
+            ]
+
+        return result
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Iceberg trajectory prediction failed: {str(exc)}",
+        )
+
 
 

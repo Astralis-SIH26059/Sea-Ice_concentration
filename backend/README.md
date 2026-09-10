@@ -15,14 +15,16 @@ The backend exposes a REST API via FastAPI. It performs several critical functio
 1. **Coordinate Projection**: Transforms requested geographical coordinates (EPSG:4326) into Antarctic Polar Stereographic (EPSG:3412) coordinates.
 2. **Dataset querying**: Uses Xarray to lazy-load and query massive `.nc` files (like the NOAA CDR Sea-Ice dataset) to extract historical ice concentration values around the projected coordinates.
 3. **Asynchronous Execution**: To prevent concurrent execution crashes with the underlying NetCDF4 C library, all dataset access is safely routed on the main asyncio event loop via `async def` endpoints.
-4. **ML Inference**: Processes feature lagging (extracting SIC values for the past 1, 2, 3, 7, 14, and 30 days) and feeds it into a pre-trained XGBoost regressor model to predict future sea-ice concentrations for up to 7 forecast days.
+4. **Sea-Ice ML Inference**: Processes feature lagging (extracting SIC values for the past 1, 2, 3, 7, 14, and 30 days) and feeds it into a pre-trained XGBoost regressor model to predict future sea-ice concentrations for up to 7 forecast days.
+5. **Iceberg Trajectory ML Inference**: Employs twin XGBoost regressors (`iceberg_wind_xgb_dx.json`, `iceberg_wind_xgb_dy.json`) with lagged polar positions, size, mask, date, and ERA5 winds (u10, v10) to forecast 24-hour iceberg displacement and multi-step drift trajectories.
 
 ## Endpoints
 
 - `GET /`: Health check and running status.
-- `GET /health`: Detailed dataset availability check.
+- `GET /health`: Detailed dataset and model availability check.
 - `GET /api/ice/concentration`: Look up historical SIC data for a specific latitude, longitude, and date.
 - `POST /api/ice/predict`: Run the ML pipeline to forecast SIC for future dates.
+- `POST /api/iceberg/predict`: Predict next iceberg position, displacement (dx/dy in meters and km), drift distance, and multi-day trajectory.
 
 ## Running Locally
 

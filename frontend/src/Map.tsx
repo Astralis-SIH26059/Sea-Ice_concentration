@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, CircleMarker, Polyline, Tooltip, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import proj4 from 'proj4';
 import 'proj4leaflet';
@@ -38,17 +38,27 @@ const crs = new L.Proj.CRS(
   }
 );
 
-interface AntarcticMapProps {
-  onLocationSelect: (lat: number, lon: number) => void;
-  selectedLat: number | null;
-  selectedLon: number | null;
-  selectedDate: string;
+export interface TrajectoryPoint {
+  lat: number;
+  lon: number;
+  label?: string;
+  type: 'history' | 'current' | 'predicted';
 }
 
-function LocationMarker({ onLocationSelect, selectedLat, selectedLon }: { onLocationSelect: (lat: number, lon: number) => void, selectedLat: number | null, selectedLon: number | null }) {
+export interface AntarcticMapProps {
+  onLocationSelect?: (lat: number, lon: number) => void;
+  selectedLat: number | null;
+  selectedLon: number | null;
+  selectedDate?: string;
+  trajectoryPoints?: TrajectoryPoint[];
+}
+
+function LocationMarker({ onLocationSelect, selectedLat, selectedLon }: { onLocationSelect?: (lat: number, lon: number) => void, selectedLat: number | null, selectedLon: number | null }) {
   useMapEvents({
     click(e) {
-      onLocationSelect(e.latlng.lat, e.latlng.lng);
+      if (onLocationSelect) {
+        onLocationSelect(e.latlng.lat, e.latlng.lng);
+      }
     },
   });
 
@@ -116,7 +126,21 @@ function ResolutionBadge() {
   );
 }
 
-export const AntarcticMap: React.FC<AntarcticMapProps> = ({ onLocationSelect, selectedLat, selectedLon, selectedDate }) => {
+export const AntarcticMap: React.FC<AntarcticMapProps> = ({
+  onLocationSelect,
+  selectedLat,
+  selectedLon,
+  selectedDate,
+  trajectoryPoints = [],
+}) => {
+  const historyLine = trajectoryPoints
+    .filter((p) => p.type === 'history' || p.type === 'current')
+    .map((p) => [p.lat, p.lon] as [number, number]);
+
+  const predictedLine = trajectoryPoints
+    .filter((p) => p.type === 'current' || p.type === 'predicted')
+    .map((p) => [p.lat, p.lon] as [number, number]);
+
   return (
     <MapContainer
       center={[-90, 0]}
@@ -146,18 +170,62 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({ onLocationSelect, se
         noWrap={true}
       />
       {/* Near-Realtime / Historical Satellite True Color Overlay */}
-      <TileLayer
-        key={selectedDate}
-        url={`https://gibs.earthdata.nasa.gov/wmts/epsg3031/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${selectedDate}/250m/{z}/{y}/{x}.jpg`}
-        attribution="NASA EOSDIS GIBS"
-        tileSize={256}
-        maxNativeZoom={5}
-        maxZoom={10}
-        minZoom={0}
-        opacity={0.8}
-        noWrap={true}
-      />
-      <LocationMarker onLocationSelect={onLocationSelect} selectedLat={selectedLat} selectedLon={selectedLon} />
+      {selectedDate && (
+        <TileLayer
+          key={selectedDate}
+          url={`https://gibs.earthdata.nasa.gov/wmts/epsg3031/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${selectedDate}/250m/{z}/{y}/{x}.jpg`}
+          attribution="NASA EOSDIS GIBS"
+          tileSize={256}
+          maxNativeZoom={5}
+          maxZoom={10}
+          minZoom={0}
+          opacity={0.8}
+          noWrap={true}
+        />
+      )}
+
+      {/* Trajectory Polyline: History -> Current */}
+      {historyLine.length > 1 && (
+        <Polyline
+          positions={historyLine}
+          pathOptions={{ color: '#38bdf8', weight: 3, dashArray: '6, 6', opacity: 0.85 }}
+        />
+      )}
+
+      {/* Trajectory Polyline: Current -> Predicted */}
+      {predictedLine.length > 1 && (
+        <Polyline
+          positions={predictedLine}
+          pathOptions={{ color: '#f59e0b', weight: 4, dashArray: '4, 6', opacity: 0.95 }}
+        />
+      )}
+
+      {/* Trajectory Waypoint Markers */}
+      {trajectoryPoints.map((pt, idx) => (
+        <CircleMarker
+          key={idx}
+          center={[pt.lat, pt.lon]}
+          radius={pt.type === 'current' ? 9 : pt.type === 'predicted' ? 9 : 6}
+          pathOptions={{
+            color: pt.type === 'predicted' ? '#f59e0b' : pt.type === 'current' ? '#ffffff' : '#0284c7',
+            fillColor: pt.type === 'predicted' ? '#ef4444' : pt.type === 'current' ? '#38bdf8' : '#38bdf8',
+            fillOpacity: 0.9,
+            weight: pt.type === 'history' ? 1.5 : 3,
+          }}
+        >
+          {pt.label && (
+            <Tooltip permanent direction="top" offset={[0, -8]}>
+              <span>{pt.label}</span>
+            </Tooltip>
+          )}
+        </CircleMarker>
+      ))}
+
+      {/* Fallback Single Selection Marker */}
+      {trajectoryPoints.length === 0 && (
+        <LocationMarker onLocationSelect={onLocationSelect} selectedLat={selectedLat} selectedLon={selectedLon} />
+      )}
     </MapContainer>
   );
 };
+

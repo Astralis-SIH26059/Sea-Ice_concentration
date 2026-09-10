@@ -27,5 +27,5 @@ The system is containerized via Docker and orchestrated using Docker Compose. It
 
 ## Core Features
 - **Sea-Ice Concentration (SIC)**: Provides historical SIC querying and real-time ML-driven forecasting using XGBoost.
-- **Iceberg Trajectory** *(Coming Soon)*: Advanced tracking and movement prediction of icebergs in the Southern Ocean.
+- **Iceberg Trajectory**: Advanced tracking and movement prediction of Southern Ocean icebergs using Antarctic Polar Stereographic projection (EPSG:3412), lagged drift historical vectors, and ERA5 10-meter wind fields.
 - **Path Prediction** *(Coming Soon)*: AI-driven route optimization for safe polar navigation.
