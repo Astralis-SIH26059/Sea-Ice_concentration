@@ -51,6 +51,7 @@ export interface AntarcticMapProps {
   selectedLon: number | null;
   selectedDate?: string;
   trajectoryPoints?: TrajectoryPoint[];
+  pathPoints?: { lat: number; lon: number }[];
 }
 
 function LocationMarker({ onLocationSelect, selectedLat, selectedLon }: { onLocationSelect?: (lat: number, lon: number) => void, selectedLat: number | null, selectedLon: number | null }) {
@@ -67,27 +68,54 @@ function LocationMarker({ onLocationSelect, selectedLat, selectedLon }: { onLoca
   ) : null;
 }
 
+// Bounding extent of Antarctic EPSG:3031 polar projection in WGS84
+const antarcticBounds = L.latLngBounds([[-38.94137, -135], [-38.94137, 45]]);
+
 function MapUpdater({ selectedLat, selectedLon }: { selectedLat: number | null; selectedLon: number | null }) {
   const map = useMap();
   useEffect(() => {
     if (selectedLat !== null && selectedLon !== null && !isNaN(selectedLat) && !isNaN(selectedLon)) {
-      map.setView([selectedLat, selectedLon], map.getZoom(), { animate: true });
+      if (map.getZoom() > 0) {
+        map.setView([selectedLat, selectedLon], map.getZoom(), { animate: true });
+      }
     }
   }, [selectedLat, selectedLon, map]);
   return null;
 }
 
-function MapController() {
+function ZoomDragManager() {
   const map = useMap();
+
   useEffect(() => {
+    const handleZoomAndDrag = () => {
+      const zoom = map.getZoom();
+      if (zoom <= 0) {
+        // At 1x (zoom 0), lock the map centered and disable dragging
+        map.dragging.disable();
+        map.setView([-90, 0], 0, { animate: false });
+      } else {
+        // When zoomed in, allow dragging without continuous runaway drift
+        map.dragging.enable();
+      }
+    };
+
     map.invalidateSize();
-    map.setView([-90, 0], 0, { animate: false });
+    handleZoomAndDrag();
+
     const timer = setTimeout(() => {
       map.invalidateSize();
-      map.setView([-90, 0], 0, { animate: false });
+      if (map.getZoom() <= 0) {
+        map.setView([-90, 0], 0, { animate: false });
+      }
     }, 200);
-    return () => clearTimeout(timer);
+
+    map.on('zoomend', handleZoomAndDrag);
+    return () => {
+      clearTimeout(timer);
+      map.off('zoomend', handleZoomAndDrag);
+    };
   }, [map]);
+
   return null;
 }
 
@@ -132,6 +160,7 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
   selectedLon,
   selectedDate,
   trajectoryPoints = [],
+  pathPoints = [],
 }) => {
   const historyLine = trajectoryPoints
     .filter((p) => p.type === 'history' || p.type === 'current')
@@ -151,10 +180,11 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
       maxZoom={10}
       zoomControl={true}
       scrollWheelZoom={true}
-      maxBounds={[[-140, -180], [-40, 180]]}
-      maxBoundsViscosity={1.0}
+      inertia={false}
+      maxBounds={antarcticBounds}
+      maxBoundsViscosity={0.7}
     >
-      <MapController />
+      <ZoomDragManager />
       <MapUpdater selectedLat={selectedLat} selectedLon={selectedLon} />
       {/* Explicit km/pixel Resolution Scale Badge */}
       <ResolutionBadge />
@@ -220,6 +250,28 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
           )}
         </CircleMarker>
       ))}
+
+      {/* Path Prediction Line */}
+      {pathPoints.length > 1 && (
+        <Polyline
+          positions={pathPoints.map(p => [p.lat, p.lon])}
+          pathOptions={{ color: '#10b981', weight: 4, opacity: 0.9, dashArray: '8, 8' }}
+        />
+      )}
+      
+      {/* Start/End Markers for Path */}
+      {pathPoints.length > 0 && (
+        <>
+          <CircleMarker center={[pathPoints[0].lat, pathPoints[0].lon]} radius={8} pathOptions={{ color: '#fff', fillColor: '#10b981', fillOpacity: 1, weight: 2 }}>
+            <Tooltip permanent direction="top" offset={[0, -8]}><span>Start</span></Tooltip>
+          </CircleMarker>
+          {pathPoints.length > 1 && (
+            <CircleMarker center={[pathPoints[pathPoints.length - 1].lat, pathPoints[pathPoints.length - 1].lon]} radius={8} pathOptions={{ color: '#fff', fillColor: '#ef4444', fillOpacity: 1, weight: 2 }}>
+              <Tooltip permanent direction="top" offset={[0, -8]}><span>End</span></Tooltip>
+            </CircleMarker>
+          )}
+        </>
+      )}
 
       {/* Fallback Single Selection Marker */}
       {trajectoryPoints.length === 0 && (

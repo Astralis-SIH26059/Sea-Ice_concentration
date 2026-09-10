@@ -4,14 +4,10 @@ import { fetchIcebergPrediction, type IcebergPredictionResponse } from '../api';
 import {
   Anchor,
   Compass,
-  Wind,
   Navigation,
   Activity,
-  Calendar,
-  Layers,
   Sparkles,
-  RotateCcw,
-  ArrowUpRight
+  RotateCcw
 } from 'lucide-react';
 import '../index.css';
 
@@ -73,72 +69,131 @@ const PRESETS: PresetIceberg[] = [
     u10: 1.80,
     v10: -3.50,
   },
+  {
+    name: 'A-23A Megaberg',
+    region: 'Weddell Sea',
+    current: { latitude: -61.200, longitude: -42.800 },
+    previous_1: { latitude: -61.250, longitude: -42.750 },
+    previous_2: { latitude: -61.300, longitude: -42.700 },
+    previous_3: { latitude: -61.350, longitude: -42.650 },
+    previous_4: { latitude: -61.400, longitude: -42.600 },
+    size: 3900.0,
+    mask: 1,
+    date: '2023-11-20',
+    u10: -1.20,
+    v10: 6.50,
+  },
+  {
+    name: 'A-76A',
+    region: 'Drake Passage',
+    current: { latitude: -59.500, longitude: -54.100 },
+    previous_1: { latitude: -59.550, longitude: -54.000 },
+    previous_2: { latitude: -59.600, longitude: -53.900 },
+    previous_3: { latitude: -59.650, longitude: -53.800 },
+    previous_4: { latitude: -59.700, longitude: -53.700 },
+    size: 3200.0,
+    mask: 1,
+    date: '2022-10-31',
+    u10: 5.10,
+    v10: 2.30,
+  },
+  {
+    name: 'C-19',
+    region: 'Ross Sea',
+    current: { latitude: -76.800, longitude: 168.500 },
+    previous_1: { latitude: -76.820, longitude: 168.600 },
+    previous_2: { latitude: -76.840, longitude: 168.700 },
+    previous_3: { latitude: -76.860, longitude: 168.800 },
+    previous_4: { latitude: -76.880, longitude: 168.900 },
+    size: 5500.0,
+    mask: 1,
+    date: '2002-05-15',
+    u10: -3.50,
+    v10: -1.20,
+  },
+  {
+    name: 'B-9B',
+    region: 'Commonwealth Bay',
+    current: { latitude: -66.800, longitude: 142.500 },
+    previous_1: { latitude: -66.820, longitude: 142.400 },
+    previous_2: { latitude: -66.840, longitude: 142.300 },
+    previous_3: { latitude: -66.860, longitude: 142.200 },
+    previous_4: { latitude: -66.880, longitude: 142.100 },
+    size: 2900.0,
+    mask: 1,
+    date: '2010-02-28',
+    u10: -4.10,
+    v10: -5.50,
+  },
+  {
+    name: 'B-31',
+    region: 'Pine Island Bay',
+    current: { latitude: -74.100, longitude: -107.500 },
+    previous_1: { latitude: -74.150, longitude: -107.400 },
+    previous_2: { latitude: -74.200, longitude: -107.300 },
+    previous_3: { latitude: -74.250, longitude: -107.200 },
+    previous_4: { latitude: -74.300, longitude: -107.100 },
+    size: 660.0,
+    mask: 1,
+    date: '2013-11-10',
+    u10: 2.40,
+    v10: 3.10,
+  },
+  {
+    name: 'C-38',
+    region: 'Conger Ice Shelf',
+    current: { latitude: -65.500, longitude: 104.200 },
+    previous_1: { latitude: -65.520, longitude: 104.300 },
+    previous_2: { latitude: -65.540, longitude: 104.400 },
+    previous_3: { latitude: -65.560, longitude: 104.500 },
+    previous_4: { latitude: -65.580, longitude: 104.600 },
+    size: 1200.0,
+    mask: 1,
+    date: '2022-03-15',
+    u10: 4.80,
+    v10: 1.50,
+  },
+  {
+    name: 'A-38B',
+    region: 'South Georgia',
+    current: { latitude: -54.500, longitude: -36.500 },
+    previous_1: { latitude: -54.600, longitude: -36.600 },
+    previous_2: { latitude: -54.700, longitude: -36.700 },
+    previous_3: { latitude: -54.800, longitude: -36.800 },
+    previous_4: { latitude: -54.900, longitude: -36.900 },
+    size: 2200.0,
+    mask: 1,
+    date: '2004-04-10',
+    u10: 6.20,
+    v10: 4.80,
+  }
 ];
 
 export function IcebergSection() {
   const [selectedPreset, setSelectedPreset] = useState<number>(0);
-  const [date, setDate] = useState<string>(PRESETS[0].date);
-  const [size, setSize] = useState<number>(PRESETS[0].size);
-  const [mask] = useState<number>(PRESETS[0].mask);
-  const [u10, setU10] = useState<number>(PRESETS[0].u10);
-  const [v10, setV10] = useState<number>(PRESETS[0].v10);
-  const [forecastSteps, setForecastSteps] = useState<number>(3);
-
-  // Positions
-  const [currentLat, setCurrentLat] = useState<number>(PRESETS[0].current.latitude);
-  const [currentLon, setCurrentLon] = useState<number>(PRESETS[0].current.longitude);
-  const [p1Lat, setP1Lat] = useState<number>(PRESETS[0].previous_1.latitude);
-  const [p1Lon, setP1Lon] = useState<number>(PRESETS[0].previous_1.longitude);
-  const [p2Lat, setP2Lat] = useState<number>(PRESETS[0].previous_2.latitude);
-  const [p2Lon, setP2Lon] = useState<number>(PRESETS[0].previous_2.longitude);
-  const [p3Lat, setP3Lat] = useState<number>(PRESETS[0].previous_3.latitude);
-  const [p3Lon, setP3Lon] = useState<number>(PRESETS[0].previous_3.longitude);
-  const [p4Lat, setP4Lat] = useState<number>(PRESETS[0].previous_4.latitude);
-  const [p4Lon, setP4Lon] = useState<number>(PRESETS[0].previous_4.longitude);
-
   const [prediction, setPrediction] = useState<IcebergPredictionResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Computed wind metrics
-  const windSpeed = Math.sqrt(u10 * u10 + v10 * v10).toFixed(2);
-  const windDirDeg = (((Math.atan2(-u10, -v10) * 180) / Math.PI + 360) % 360).toFixed(1);
-
-  const applyPreset = (idx: number) => {
-    const p = PRESETS[idx];
-    setSelectedPreset(idx);
-    setDate(p.date);
-    setSize(p.size);
-    setU10(p.u10);
-    setV10(p.v10);
-    setCurrentLat(p.current.latitude);
-    setCurrentLon(p.current.longitude);
-    setP1Lat(p.previous_1.latitude);
-    setP1Lon(p.previous_1.longitude);
-    setP2Lat(p.previous_2.latitude);
-    setP2Lon(p.previous_2.longitude);
-    setP3Lat(p.previous_3.latitude);
-    setP3Lon(p.previous_3.longitude);
-    setP4Lat(p.previous_4.latitude);
-    setP4Lon(p.previous_4.longitude);
-  };
+  const activeIceberg = PRESETS[selectedPreset];
+  const todayDate = new Date().toISOString().split('T')[0];
 
   const runPrediction = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetchIcebergPrediction({
-        current: { latitude: currentLat, longitude: currentLon },
-        previous_1: { latitude: p1Lat, longitude: p1Lon },
-        previous_2: { latitude: p2Lat, longitude: p2Lon },
-        previous_3: { latitude: p3Lat, longitude: p3Lon },
-        previous_4: { latitude: p4Lat, longitude: p4Lon },
-        size,
-        mask,
-        date,
-        u10,
-        v10,
-        forecast_steps: forecastSteps,
+        current: activeIceberg.current,
+        previous_1: activeIceberg.previous_1,
+        previous_2: activeIceberg.previous_2,
+        previous_3: activeIceberg.previous_3,
+        previous_4: activeIceberg.previous_4,
+        size: activeIceberg.size,
+        mask: activeIceberg.mask,
+        date: todayDate,
+        u10: activeIceberg.u10,
+        v10: activeIceberg.v10,
+        forecast_steps: 3,
       });
       setPrediction(res);
     } catch (err: any) {
@@ -148,18 +203,18 @@ export function IcebergSection() {
     }
   };
 
-  // Run on first load with default preset
+  // Run on first load and when preset changes
   useEffect(() => {
     runPrediction();
-  }, [selectedPreset, forecastSteps]);
+  }, [selectedPreset]);
 
   // Construct trajectory points for map
   const trajectoryPoints: TrajectoryPoint[] = [
-    { lat: p4Lat, lon: p4Lon, label: 'T-4', type: 'history' },
-    { lat: p3Lat, lon: p3Lon, label: 'T-3', type: 'history' },
-    { lat: p2Lat, lon: p2Lon, label: 'T-2', type: 'history' },
-    { lat: p1Lat, lon: p1Lon, label: 'T-1', type: 'history' },
-    { lat: currentLat, lon: currentLon, label: 'Current', type: 'current' },
+    { lat: activeIceberg.previous_4.latitude, lon: activeIceberg.previous_4.longitude, label: 'T-4', type: 'history' },
+    { lat: activeIceberg.previous_3.latitude, lon: activeIceberg.previous_3.longitude, label: 'T-3', type: 'history' },
+    { lat: activeIceberg.previous_2.latitude, lon: activeIceberg.previous_2.longitude, label: 'T-2', type: 'history' },
+    { lat: activeIceberg.previous_1.latitude, lon: activeIceberg.previous_1.longitude, label: 'T-1', type: 'history' },
+    { lat: activeIceberg.current.latitude, lon: activeIceberg.current.longitude, label: 'Current', type: 'current' },
   ];
 
   if (prediction?.trajectory && prediction.trajectory.length > 0) {
@@ -204,7 +259,7 @@ export function IcebergSection() {
                 key={p.name}
                 type="button"
                 className={`preset-btn ${selectedPreset === idx ? 'active' : ''}`}
-                onClick={() => applyPreset(idx)}
+                onClick={() => setSelectedPreset(idx)}
               >
                 <div className="preset-name">{p.name}</div>
                 <div className="preset-region">{p.region}</div>
@@ -213,133 +268,17 @@ export function IcebergSection() {
           </div>
         </div>
 
-        {/* Current Coordinates */}
-        <div className="input-group">
-          <div className="coord-header-row">
-            <label>
-              <Navigation size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-              Current Iceberg Position
-            </label>
-            <span className="coord-formatted-badge">
-              {Math.abs(currentLat).toFixed(2)}° S, {Math.abs(currentLon).toFixed(2)}° {currentLon >= 0 ? 'E' : 'W'}
-            </span>
+        {loading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 0', color: 'var(--text-secondary)' }}>
+            <RotateCcw className="loading-spinner" size={16} />
+            <span>Computing Trajectory...</span>
           </div>
-          <div className="coord-inputs">
-            <div className="coord-input-box">
-              <label htmlFor="ib-current-lat" className="coord-label">Latitude (°S)</label>
-              <input
-                id="ib-current-lat"
-                type="number"
-                step="any"
-                className="coord-input"
-                value={currentLat}
-                onChange={(e) => setCurrentLat(parseFloat(e.target.value) || 0)}
-              />
-            </div>
-            <div className="coord-input-box">
-              <label htmlFor="ib-current-lon" className="coord-label">Longitude (°E/°W)</label>
-              <input
-                id="ib-current-lon"
-                type="number"
-                step="any"
-                className="coord-input"
-                value={currentLon}
-                onChange={(e) => setCurrentLon(parseFloat(e.target.value) || 0)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* ERA5 Environmental Winds */}
-        <div className="input-group">
-          <div className="coord-header-row">
-            <label>
-              <Wind size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-              ERA5 Wind Forcing (10m)
-            </label>
-            <span className="coord-formatted-badge">
-              {windSpeed} m/s @ {windDirDeg}°
-            </span>
-          </div>
-          <div className="coord-inputs">
-            <div className="coord-input-box">
-              <label htmlFor="ib-u10" className="coord-label">u10 Zonal (m/s)</label>
-              <input
-                id="ib-u10"
-                type="number"
-                step="any"
-                className="coord-input"
-                value={u10}
-                onChange={(e) => setU10(parseFloat(e.target.value) || 0)}
-              />
-            </div>
-            <div className="coord-input-box">
-              <label htmlFor="ib-v10" className="coord-label">v10 Meridional (m/s)</label>
-              <input
-                id="ib-v10"
-                type="number"
-                step="any"
-                className="coord-input"
-                value={v10}
-                onChange={(e) => setV10(parseFloat(e.target.value) || 0)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Parameters: Size & Forecast Steps */}
-        <div className="coord-inputs">
-          <div className="coord-input-box">
-            <label htmlFor="ib-size" className="coord-label">
-              <Layers size={12} style={{ display: 'inline', marginRight: '3px' }} />
-              Size (km²)
-            </label>
-            <input
-              id="ib-size"
-              type="number"
-              step="any"
-              className="coord-input"
-              value={size}
-              onChange={(e) => setSize(parseFloat(e.target.value) || 10)}
-            />
-          </div>
-          <div className="coord-input-box">
-            <label htmlFor="ib-steps" className="coord-label">
-              <Calendar size={12} style={{ display: 'inline', marginRight: '3px' }} />
-              Forecast Horizon
-            </label>
-            <select
-              id="ib-steps"
-              className="coord-input"
-              value={forecastSteps}
-              onChange={(e) => setForecastSteps(parseInt(e.target.value, 10))}
-            >
-              <option value={1}>1 Day (24h)</option>
-              <option value={3}>3 Days (72h)</option>
-              <option value={5}>5 Days (120h)</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Run Prediction Button */}
-        <button
-          type="button"
-          className="iceberg-submit-btn"
-          onClick={runPrediction}
-          disabled={loading}
-        >
-          {loading ? (
-            <RotateCcw className="loading-spinner" size={18} />
-          ) : (
-            <ArrowUpRight size={18} />
-          )}
-          <span>{loading ? 'Computing Trajectory...' : 'Run Trajectory Model'}</span>
-        </button>
+        )}
 
         {error && <div className="iceberg-error-badge">{error}</div>}
 
         {/* Results Card */}
-        {prediction && (
+        {prediction && !loading && (
           <div className="iceberg-results-summary">
             <div className="result-title">
               <Activity size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
@@ -386,9 +325,9 @@ export function IcebergSection() {
       <div className="map-stage" style={{ flexDirection: 'column', gap: '1.5rem' }}>
         <div className="square-map-wrapper">
           <AntarcticMap
-            selectedLat={currentLat}
-            selectedLon={currentLon}
-            selectedDate={date}
+            selectedLat={activeIceberg.current.latitude}
+            selectedLon={activeIceberg.current.longitude}
+            selectedDate={todayDate}
             trajectoryPoints={trajectoryPoints}
           />
 
@@ -414,7 +353,7 @@ export function IcebergSection() {
           <div className="forecast-panel iceberg-timeline-panel">
             <div className="result-title" style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
               <Navigation size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle', color: '#38bdf8' }} />
-              Multi-Day Trajectory Projection
+              3-Day Trajectory Projection
             </div>
             <div className="forecast-cards">
               {prediction.trajectory.map((step) => (

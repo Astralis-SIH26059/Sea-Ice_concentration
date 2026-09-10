@@ -159,3 +159,42 @@ export const fetchIcebergPrediction = async (
 
   return response.json();
 };
+
+export interface PathNode {
+  lat: number;
+  lon: number;
+}
+
+export interface PathPredictionResponse {
+  status: string;
+  path?: PathNode[];
+  total_distance_km?: number;
+  detail?: string;
+}
+
+export const fetchPathPrediction = async (
+  startLat: number,
+  startLon: number,
+  endLat: number,
+  endLon: number,
+  date: string
+): Promise<PathPredictionResponse> => {
+  const response = await fetch(`${BACKEND_URL}/api/path/predict`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      start_lat: startLat,
+      start_lon: startLon,
+      end_lat: endLat,
+      end_lon: endLon,
+      date: date
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Server returned ${response.status}`);
+  }
+
+  return response.json();
+};

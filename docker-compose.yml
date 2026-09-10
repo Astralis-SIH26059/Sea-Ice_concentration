@@ -1,13 +1,14 @@
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
     volumes:
       - ./data:/data
       - ./backend/models:/backend/models
+      - ./backend:/app
     restart: unless-stopped
     
   frontend:
@@ -18,5 +19,8 @@ services:
       - "5173:5173"
     environment:
       - VITE_BACKEND_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     restart: unless-stopped
 

@@ -10,6 +10,8 @@ from pyproj import Transformer
 import xgboost as xgb
 import joblib
 import pandas as pd
+import heapq
+import math
 
 try:
     from iceberg_predict import (
@@ -68,7 +70,14 @@ class IcebergPredictionRequest(BaseModel):
     date: dt.date = Field(default_factory=dt.date.today)
     u10: float = Field(default=0.0, description="ERA5 10m U-wind component (m/s)")
     v10: float = Field(default=0.0, description="ERA5 10m V-wind component (m/s)")
-    forecast_steps: int = Field(default=1, ge=1, le=5, description="Trajectory forecast days (1-5)")
+    forecast_steps: int = Field(default=3, ge=1, le=5, description="Trajectory forecast days (1-5)")
+
+class PathPredictionRequest(BaseModel):
+    start_lat: float = Field(..., ge=-90, le=0)
+    start_lon: float = Field(..., ge=-180, le=180)
+    end_lat: float = Field(..., ge=-90, le=0)
+    end_lon: float = Field(..., ge=-180, le=180)
+    date: dt.date = Field(default_factory=dt.date.today)
 
 def get_dataset():
     global ds
@@ -296,5 +305,147 @@ async def predict_iceberg_endpoint(request: IcebergPredictionRequest):
             detail=f"Iceberg trajectory prediction failed: {str(exc)}",
         )
 
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371.0
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
+@app.post("/api/path/predict")
+async def predict_path(request: PathPredictionRequest):
+    dataset = get_dataset()
+    
+    # 0.2 deg lat, ~0.5 deg lon is roughly 20x15 km grid near the poles
+    LAT_STEP = 0.2
+    LON_STEP = 0.5
+    
+    start = (round(request.start_lat / LAT_STEP) * LAT_STEP, round(request.start_lon / LON_STEP) * LON_STEP)
+    end = (round(request.end_lat / LAT_STEP) * LAT_STEP, round(request.end_lon / LON_STEP) * LON_STEP)
+    
+    # Pre-fetch day slice and grid coordinates once for high performance
+    try:
+        day = dataset["cdr_seaice_conc"].sel(time=str(request.date), method="nearest")
+    except Exception:
+        day = dataset["cdr_seaice_conc"].isel(time=-1)
+    xv = dataset["x"].values
+    yv = dataset["y"].values
+    
+    # Cache SIC lookups
+    sic_cache = {}
+    def get_sic(lat, lon):
+        key = (round(lat, 3), round(lon, 3))
+        if key in sic_cache:
+            return sic_cache[key]
+        try:
+            x, y = TO_POLAR.transform(lon, lat)
+            xi = int(np.abs(xv - x).argmin())
+            yi = int(np.abs(yv - y).argmin())
+            
+            raw_val = float(day.isel(x=xi, y=yi).values)
+            
+            # NSIDC CDR: 0.0-1.0 is valid sea ice conc. NaN or > 1.0 (e.g. 2.54 land, 2.53 coast) is land/impassable
+            if np.isnan(raw_val) or raw_val > 1.0:
+                sic_cache[key] = 100.0
+                return 100.0
+                
+            val = max(0.0, min(100.0, raw_val * 100.0))
+            sic_cache[key] = val
+            return val
+        except Exception:
+            sic_cache[key] = 100.0
+            return 100.0
 
+    if get_sic(start[0], start[1]) > 80.0:
+        return {
+            "status": "failed",
+            "detail": "Start location is on land or impenetrable ice (Antarctica landmass). Please select points in navigable ocean.",
+            "nodes_expanded": 0
+        }
+        
+    if get_sic(end[0], end[1]) > 80.0:
+        return {
+            "status": "failed",
+            "detail": "Destination location is on land or impenetrable ice (Antarctica landmass). Please select points in navigable ocean.",
+            "nodes_expanded": 0
+        }
+
+    if start == end:
+        return {"path": [{"lat": start[0], "lon": start[1]}], "total_distance_km": 0.0, "status": "success"}
+
+    # Limit search space to prevent infinite loops / memory exhaustion
+    max_nodes = 5000
+    
+    open_set = []
+    heapq.heappush(open_set, (0.0, start))
+    
+    came_from = {}
+    g_score = {start: 0.0}
+    
+    nodes_expanded = 0
+
+    while open_set and nodes_expanded < max_nodes:
+        current_f, current = heapq.heappop(open_set)
+        nodes_expanded += 1
+        
+        if haversine(current[0], current[1], end[0], end[1]) < (LAT_STEP * 111):
+            # Close enough to end
+            path = [{"lat": end[0], "lon": end[1]}]
+            curr = current
+            total_dist = haversine(current[0], current[1], end[0], end[1])
+            while curr in came_from:
+                prev = came_from[curr]
+                total_dist += haversine(curr[0], curr[1], prev[0], prev[1])
+                path.append({"lat": curr[0], "lon": curr[1]})
+                curr = prev
+            path.append({"lat": start[0], "lon": start[1]})
+            path.reverse()
+            
+            return {
+                "status": "success",
+                "path": path,
+                "total_distance_km": round(total_dist, 2),
+                "nodes_expanded": nodes_expanded
+            }
+            
+        # Generate neighbors (8 directions)
+        neighbors = [
+            (current[0] + LAT_STEP, current[1]),
+            (current[0] - LAT_STEP, current[1]),
+            (current[0], current[1] + LON_STEP),
+            (current[0], current[1] - LON_STEP),
+            (current[0] + LAT_STEP, current[1] + LON_STEP),
+            (current[0] - LAT_STEP, current[1] + LON_STEP),
+            (current[0] + LAT_STEP, current[1] - LON_STEP),
+            (current[0] - LAT_STEP, current[1] - LON_STEP),
+        ]
+        
+        for neighbor in neighbors:
+            # Check bounds roughly (Antarctica / Southern Ocean)
+            if neighbor[0] > 0 or neighbor[0] < -90:
+                continue
+                
+            dist = haversine(current[0], current[1], neighbor[0], neighbor[1])
+            sic = get_sic(neighbor[0], neighbor[1])
+            
+            # Impassable if ice concentration > 80% or land
+            if sic > 80.0:
+                continue
+                
+            # Penalty scales with SIC: 0% -> 1x cost, 80% -> 5x cost
+            penalty = 1.0 + (sic / 20.0)
+            tentative_g_score = g_score[current] + (dist * penalty)
+            
+            if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
+                came_from[neighbor] = current
+                g_score[neighbor] = tentative_g_score
+                f_score = tentative_g_score + haversine(neighbor[0], neighbor[1], end[0], end[1])
+                heapq.heappush(open_set, (f_score, neighbor))
+                
+    return {
+        "status": "failed",
+        "detail": "Path not found within search limit or route is completely blocked by sea ice.",
+        "nodes_expanded": nodes_expanded
+    }

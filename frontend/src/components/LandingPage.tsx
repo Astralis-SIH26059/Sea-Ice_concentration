@@ -39,7 +39,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
           <h3>Iceberg Trajectory</h3>
           <p>Track and predict movements of significant icebergs in the Southern Ocean.</p>
           <div className="card-action">
-            <span>Coming Soon</span>
+            <span>Launch Tool</span>
             <ArrowRight size={16} />
           </div>
         </div>
@@ -51,7 +51,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
           <h3>Path Prediction</h3>
           <p>AI-driven route optimization for research vessels navigating polar waters.</p>
           <div className="card-action">
-            <span>Coming Soon</span>
+            <span>Launch Tool</span>
             <ArrowRight size={16} />
           </div>
         </div>
