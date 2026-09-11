@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, CircleMarker, Polyline, Tooltip, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import proj4 from 'proj4';
@@ -52,6 +52,9 @@ export interface AntarcticMapProps {
   selectedDate?: string;
   trajectoryPoints?: TrajectoryPoint[];
   pathPoints?: { lat: number; lon: number }[];
+  focusPathTrigger?: number;
+  resetViewTrigger?: number;
+  focusTrajectoryTrigger?: number;
 }
 
 function LocationMarker({ onLocationSelect, selectedLat, selectedLon }: { onLocationSelect?: (lat: number, lon: number) => void, selectedLat: number | null, selectedLon: number | null }) {
@@ -71,15 +74,153 @@ function LocationMarker({ onLocationSelect, selectedLat, selectedLon }: { onLoca
 // Bounding extent of Antarctic EPSG:3031 polar projection in WGS84
 const antarcticBounds = L.latLngBounds([[-38.94137, -135], [-38.94137, 45]]);
 
-function MapUpdater({ selectedLat, selectedLon }: { selectedLat: number | null; selectedLon: number | null }) {
+function MapUpdater({
+  selectedLat,
+  selectedLon,
+  disableWhenPathActive,
+}: {
+  selectedLat: number | null;
+  selectedLon: number | null;
+  disableWhenPathActive?: boolean;
+}) {
   const map = useMap();
   useEffect(() => {
+    if (disableWhenPathActive) return;
     if (selectedLat !== null && selectedLon !== null && !isNaN(selectedLat) && !isNaN(selectedLon)) {
       if (map.getZoom() > 0) {
         map.setView([selectedLat, selectedLon], map.getZoom(), { animate: true });
       }
     }
-  }, [selectedLat, selectedLon, map]);
+  }, [selectedLat, selectedLon, map, disableWhenPathActive]);
+  return null;
+}
+
+function PathFocusManager({
+  pathPoints,
+  focusTrigger,
+  resetTrigger,
+}: {
+  pathPoints: { lat: number; lon: number }[];
+  focusTrigger?: number;
+  resetTrigger?: number;
+}) {
+  const map = useMap();
+  const lastFocusTriggerRef = useRef<number | undefined>(undefined);
+  const lastResetTriggerRef = useRef<number | undefined>(undefined);
+
+  // Focus and zoom in to the path without over-zooming
+  useEffect(() => {
+    if (focusTrigger === undefined || focusTrigger === lastFocusTriggerRef.current) return;
+    lastFocusTriggerRef.current = focusTrigger;
+
+    if (!pathPoints || pathPoints.length < 2) return;
+
+    try {
+      // 1. Project path points to EPSG:3031 polar coordinates (meters)
+      const projected = pathPoints.map((p) =>
+        proj4('EPSG:4326', 'EPSG:3031', [p.lon, p.lat])
+      );
+
+      const xs = projected.map((c) => c[0]);
+      const ys = projected.map((c) => c[1]);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+
+      // True geometric center in polar projection
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const [centerLon, centerLat] = proj4('EPSG:3031', 'EPSG:4326', [centerX, centerY]);
+
+      // Physical span of the route in meters
+      const spanX = maxX - minX;
+      const spanY = maxY - minY;
+      const maxSpan = Math.max(spanX, spanY);
+
+      // Controlled, comfortable zoom level:
+      // In EPSG:3031 polar stereographic projection:
+      // - Zoom 0: ~13,100 km view (full Antarctica)
+      // - Zoom 1: ~6,550 km view (continental scale)
+      // - Zoom 2: ~3,280 km view (major oceanic basin)
+      // - Zoom 3: ~1,640 km view (regional sea & close drift inspection)
+      let targetZoom = 3;
+      if (maxSpan > 1800000) {
+        targetZoom = 1;
+      } else if (maxSpan > 750000) {
+        targetZoom = 2;
+      } else {
+        targetZoom = 3;
+      }
+
+      map.dragging.enable();
+      map.setView([centerLat, centerLon], targetZoom, { animate: true });
+    } catch (e) {
+      console.error('Failed to focus map on path:', e);
+    }
+  }, [focusTrigger, pathPoints, map]);
+
+  // Reset to full Antarctic view
+  useEffect(() => {
+    if (resetTrigger === undefined || resetTrigger === lastResetTriggerRef.current) return;
+    lastResetTriggerRef.current = resetTrigger;
+
+    map.setView([-90, 0], 0, { animate: true });
+  }, [resetTrigger, map]);
+
+  return null;
+}
+
+function TrajectoryFocusManager({
+  trajectoryPoints,
+  focusTrigger,
+  selectedLat,
+  selectedLon,
+}: {
+  trajectoryPoints: TrajectoryPoint[];
+  focusTrigger?: number;
+  selectedLat?: number | null;
+  selectedLon?: number | null;
+}) {
+  const map = useMap();
+  const lastTriggerRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (focusTrigger === undefined || focusTrigger === lastTriggerRef.current) return;
+    lastTriggerRef.current = focusTrigger;
+
+    try {
+      let targetLat = selectedLat;
+      let targetLon = selectedLon;
+
+      if (trajectoryPoints && trajectoryPoints.length > 0) {
+        const currentPt = trajectoryPoints.find((p) => p.type === 'current');
+        if (currentPt) {
+          targetLat = currentPt.lat;
+          targetLon = currentPt.lon;
+        } else {
+          targetLat = trajectoryPoints[0].lat;
+          targetLon = trajectoryPoints[0].lon;
+        }
+      }
+
+      if (
+        targetLat !== null &&
+        targetLat !== undefined &&
+        targetLon !== null &&
+        targetLon !== undefined &&
+        !isNaN(targetLat) &&
+        !isNaN(targetLon)
+      ) {
+        map.dragging.enable();
+        // Zoom 7 (7x) high-detail close-up of the iceberg drift trajectory (~102 km view, 128 m/pixel)
+        map.setView([targetLat, targetLon], 7, { animate: true });
+      }
+    } catch (e) {
+      console.error('Failed to zoom in on iceberg:', e);
+    }
+  }, [focusTrigger, trajectoryPoints, selectedLat, selectedLon, map]);
+
   return null;
 }
 
@@ -161,6 +302,9 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
   selectedDate,
   trajectoryPoints = [],
   pathPoints = [],
+  focusPathTrigger,
+  resetViewTrigger,
+  focusTrajectoryTrigger,
 }) => {
   const historyLine = trajectoryPoints
     .filter((p) => p.type === 'history' || p.type === 'current')
@@ -185,7 +329,22 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
       maxBoundsViscosity={0.7}
     >
       <ZoomDragManager />
-      <MapUpdater selectedLat={selectedLat} selectedLon={selectedLon} />
+      <MapUpdater
+        selectedLat={selectedLat}
+        selectedLon={selectedLon}
+        disableWhenPathActive={pathPoints.length > 1 || (trajectoryPoints.length > 0 && focusTrajectoryTrigger !== undefined)}
+      />
+      <PathFocusManager
+        pathPoints={pathPoints}
+        focusTrigger={focusPathTrigger}
+        resetTrigger={resetViewTrigger}
+      />
+      <TrajectoryFocusManager
+        trajectoryPoints={trajectoryPoints}
+        focusTrigger={focusTrajectoryTrigger}
+        selectedLat={selectedLat}
+        selectedLon={selectedLon}
+      />
       {/* Explicit km/pixel Resolution Scale Badge */}
       <ResolutionBadge />
       

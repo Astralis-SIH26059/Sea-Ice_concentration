@@ -314,6 +314,14 @@ def haversine(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
+def calculate_bearing(lat1, lon1, lat2, lon2):
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    delta_lambda = math.radians(lon2 - lon1)
+    y = math.sin(delta_lambda) * math.cos(phi2)
+    x = math.cos(phi1) * math.sin(phi2) - math.sin(phi1) * math.cos(phi2) * math.cos(delta_lambda)
+    theta = math.atan2(y, x)
+    return round((math.degrees(theta) + 360.0) % 360.0, 1)
+
 @app.post("/api/path/predict")
 async def predict_path(request: PathPredictionRequest):
     dataset = get_dataset()
@@ -373,7 +381,32 @@ async def predict_path(request: PathPredictionRequest):
         }
 
     if start == end:
-        return {"path": [{"lat": start[0], "lon": start[1]}], "total_distance_km": 0.0, "status": "success"}
+        sic_val = round(get_sic(start[0], start[1]), 1)
+        node = {
+            "lat": start[0],
+            "lon": start[1],
+            "sic": sic_val,
+            "distance_from_prev_km": 0.0,
+            "cumulative_distance_km": 0.0,
+            "bearing_deg": 0.0,
+            "recommended_speed_knots": 12.0 if sic_val < 15.0 else max(5.0, 12.0 - (sic_val * 0.1)),
+        }
+        summary = {
+            "avg_ice_concentration": sic_val,
+            "max_ice_concentration": sic_val,
+            "min_ice_concentration": sic_val,
+            "total_distance_km": 0.0,
+            "total_distance_nm": 0.0,
+            "total_waypoints": 1,
+            "estimated_duration_hours": 0.0,
+            "ice_free_distance_km": 0.0,
+            "ice_affected_distance_km": 0.0,
+            "ice_free_ratio_percent": 100.0 if sic_val < 15.0 else 0.0,
+            "risk_level": "Low" if sic_val < 15.0 else "Moderate" if sic_val < 40.0 else "Elevated" if sic_val < 70.0 else "High",
+            "risk_label": "Open Water Navigation" if sic_val < 15.0 else "Marginal Ice Zone",
+            "recommended_polar_class": "IMO Category C (Standard Hull)" if sic_val < 15.0 else "IMO Polar Class PC7 (Ice-Strengthened)",
+        }
+        return {"path": [node], "total_distance_km": 0.0, "summary": summary, "status": "success"}
 
     # Limit search space to prevent infinite loops / memory exhaustion
     max_nodes = 5000
@@ -392,21 +425,114 @@ async def predict_path(request: PathPredictionRequest):
         
         if haversine(current[0], current[1], end[0], end[1]) < (LAT_STEP * 111):
             # Close enough to end
-            path = [{"lat": end[0], "lon": end[1]}]
+            raw_path = [{"lat": end[0], "lon": end[1]}]
             curr = current
-            total_dist = haversine(current[0], current[1], end[0], end[1])
             while curr in came_from:
                 prev = came_from[curr]
-                total_dist += haversine(curr[0], curr[1], prev[0], prev[1])
-                path.append({"lat": curr[0], "lon": curr[1]})
+                raw_path.append({"lat": curr[0], "lon": curr[1]})
                 curr = prev
-            path.append({"lat": start[0], "lon": start[1]})
-            path.reverse()
-            
+            raw_path.append({"lat": start[0], "lon": start[1]})
+            raw_path.reverse()
+
+            # Enrich waypoints with local SIC, leg distance, cumulative distance, bearing, and speeds
+            enriched_path = []
+            cum_dist = 0.0
+            total_duration_hours = 0.0
+            ice_free_dist = 0.0
+            ice_affected_dist = 0.0
+
+            n_points = len(raw_path)
+            for i, pt in enumerate(raw_path):
+                lat = round(pt["lat"], 3)
+                lon = round(pt["lon"], 3)
+                sic = round(get_sic(lat, lon), 1)
+
+                if i == 0:
+                    leg_dist = 0.0
+                else:
+                    prev_pt = raw_path[i - 1]
+                    leg_dist = haversine(prev_pt["lat"], prev_pt["lon"], lat, lon)
+
+                cum_dist += leg_dist
+
+                # Bearing to next waypoint (or inherit previous bearing if at destination)
+                if i < n_points - 1:
+                    next_pt = raw_path[i + 1]
+                    bearing = calculate_bearing(lat, lon, next_pt["lat"], next_pt["lon"])
+                else:
+                    bearing = enriched_path[-1]["bearing_deg"] if enriched_path else 0.0
+
+                # Cruising speed: ~12.0 knots open water (<15% SIC), reduced in heavier ice down to 4.5 knots
+                if sic < 15.0:
+                    speed_kts = 12.0
+                    ice_free_dist += leg_dist
+                else:
+                    speed_kts = max(4.5, round(12.0 - ((sic - 15.0) * 0.11), 1))
+                    ice_affected_dist += leg_dist
+
+                # Leg duration in hours (1 knot = 1.852 km/h)
+                if leg_dist > 0:
+                    leg_speed_kmh = speed_kts * 1.852
+                    total_duration_hours += leg_dist / leg_speed_kmh
+
+                enriched_path.append({
+                    "lat": lat,
+                    "lon": lon,
+                    "sic": sic,
+                    "distance_from_prev_km": round(leg_dist, 2),
+                    "cumulative_distance_km": round(cum_dist, 2),
+                    "bearing_deg": bearing,
+                    "recommended_speed_knots": speed_kts,
+                })
+
+            sics = [p["sic"] for p in enriched_path]
+            avg_sic = round(sum(sics) / len(sics), 1) if sics else 0.0
+            max_sic = round(max(sics), 1) if sics else 0.0
+            min_sic = round(min(sics), 1) if sics else 0.0
+            total_km = round(cum_dist, 2)
+            total_nm = round(cum_dist / 1.852, 2)
+
+            # Polar code risk classification & advisory
+            if max_sic < 15.0:
+                risk_level = "Low"
+                risk_label = "Open Water Corridor (<15% SIC)"
+                polar_class = "IMO Category C / Standard Unstrengthened Vessel"
+            elif max_sic < 40.0:
+                risk_level = "Moderate"
+                risk_label = "Marginal Ice Zone (15%-40% SIC)"
+                polar_class = "IMO Polar Class PC7 (Light Ice-Strengthened Vessel)"
+            elif max_sic < 70.0:
+                risk_level = "Elevated"
+                risk_label = "Pack Ice Zone (40%-70% SIC)"
+                polar_class = "IMO Polar Class PC5 / PC6 (Medium Icebreaker Escort Recommended)"
+            else:
+                risk_level = "High"
+                risk_label = "Heavy Consolidated Sea Ice (>70% SIC)"
+                polar_class = "IMO Polar Class PC1-PC3 (Heavy Polar Icebreaker Required)"
+
+            ice_free_pct = round((ice_free_dist / total_km * 100.0), 1) if total_km > 0 else 100.0
+
+            summary = {
+                "avg_ice_concentration": avg_sic,
+                "max_ice_concentration": max_sic,
+                "min_ice_concentration": min_sic,
+                "total_distance_km": total_km,
+                "total_distance_nm": total_nm,
+                "total_waypoints": len(enriched_path),
+                "estimated_duration_hours": round(total_duration_hours, 1),
+                "ice_free_distance_km": round(ice_free_dist, 2),
+                "ice_affected_distance_km": round(ice_affected_dist, 2),
+                "ice_free_ratio_percent": ice_free_pct,
+                "risk_level": risk_level,
+                "risk_label": risk_label,
+                "recommended_polar_class": polar_class,
+            }
+
             return {
                 "status": "success",
-                "path": path,
-                "total_distance_km": round(total_dist, 2),
+                "path": enriched_path,
+                "total_distance_km": total_km,
+                "summary": summary,
                 "nodes_expanded": nodes_expanded
             }
             

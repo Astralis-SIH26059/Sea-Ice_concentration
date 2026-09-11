@@ -163,12 +163,35 @@ export const fetchIcebergPrediction = async (
 export interface PathNode {
   lat: number;
   lon: number;
+  sic?: number;
+  distance_from_prev_km?: number;
+  cumulative_distance_km?: number;
+  bearing_deg?: number;
+  recommended_speed_knots?: number;
+}
+
+export interface PathPredictionSummary {
+  avg_ice_concentration: number;
+  max_ice_concentration: number;
+  min_ice_concentration: number;
+  total_distance_km: number;
+  total_distance_nm: number;
+  total_waypoints: number;
+  estimated_duration_hours: number;
+  ice_free_distance_km: number;
+  ice_affected_distance_km: number;
+  ice_free_ratio_percent: number;
+  risk_level: 'Low' | 'Moderate' | 'Elevated' | 'High';
+  risk_label: string;
+  recommended_polar_class: string;
 }
 
 export interface PathPredictionResponse {
   status: string;
   path?: PathNode[];
   total_distance_km?: number;
+  summary?: PathPredictionSummary;
+  nodes_expanded?: number;
   detail?: string;
 }
 

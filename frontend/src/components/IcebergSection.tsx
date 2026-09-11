@@ -4,11 +4,13 @@ import { fetchIcebergPrediction, type IcebergPredictionResponse } from '../api';
 import {
   Anchor,
   Compass,
-  Navigation,
   Activity,
   Sparkles,
-  RotateCcw
+  RotateCcw,
+  ChevronDown,
+  Crosshair
 } from 'lucide-react';
+import { IcebergSummary } from './IcebergSummary';
 import '../index.css';
 
 interface PresetIceberg {
@@ -172,6 +174,7 @@ const PRESETS: PresetIceberg[] = [
 export function IcebergSection() {
   const [selectedPreset, setSelectedPreset] = useState<number>(0);
   const [prediction, setPrediction] = useState<IcebergPredictionResponse | null>(null);
+  const [focusTrajectoryTrigger, setFocusTrajectoryTrigger] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -236,9 +239,10 @@ export function IcebergSection() {
   }
 
   return (
-    <div className="app-container">
-      {/* Control Panel */}
-      <div className="control-panel iceberg-panel">
+    <div className="path-page-container">
+      <div className="app-container path-app-container">
+        {/* Control Panel */}
+        <div className="control-panel iceberg-panel">
         <div className="panel-header">
           <Anchor size={28} color="#38bdf8" />
           <div>
@@ -259,7 +263,10 @@ export function IcebergSection() {
                 key={p.name}
                 type="button"
                 className={`preset-btn ${selectedPreset === idx ? 'active' : ''}`}
-                onClick={() => setSelectedPreset(idx)}
+                onClick={() => {
+                  setSelectedPreset(idx);
+                  setFocusTrajectoryTrigger((prev) => prev + 1);
+                }}
               >
                 <div className="preset-name">{p.name}</div>
                 <div className="preset-region">{p.region}</div>
@@ -317,18 +324,43 @@ export function IcebergSection() {
                 </span>
               </div>
             </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.85rem' }}>
+              <button
+                type="button"
+                className="scroll-to-summary-btn"
+                style={{ marginTop: 0 }}
+                onClick={() => setFocusTrajectoryTrigger((prev) => prev + 1)}
+                title="Center and zoom map on current iceberg"
+              >
+                <Crosshair size={14} />
+                <span>Zoom to Iceberg (7x)</span>
+              </button>
+              <button
+                type="button"
+                className="scroll-to-summary-btn"
+                style={{ marginTop: 0 }}
+                onClick={() => {
+                  document.getElementById('iceberg-summary')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+              >
+                <span>View Summary</span>
+                <ChevronDown size={14} />
+              </button>
+            </div>
           </div>
         )}
       </div>
 
       {/* Map Stage */}
-      <div className="map-stage" style={{ flexDirection: 'column', gap: '1.5rem' }}>
+      <div className="map-stage">
         <div className="square-map-wrapper">
           <AntarcticMap
             selectedLat={activeIceberg.current.latitude}
             selectedLon={activeIceberg.current.longitude}
             selectedDate={todayDate}
             trajectoryPoints={trajectoryPoints}
+            focusTrajectoryTrigger={focusTrajectoryTrigger}
           />
 
           {/* Map Legend Overlay */}
@@ -347,29 +379,16 @@ export function IcebergSection() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
 
-        {/* Multi-step Forecast Timeline */}
-        {prediction?.trajectory && prediction.trajectory.length > 1 && (
-          <div className="forecast-panel iceberg-timeline-panel">
-            <div className="result-title" style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
-              <Navigation size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle', color: '#38bdf8' }} />
-              3-Day Trajectory Projection
-            </div>
-            <div className="forecast-cards">
-              {prediction.trajectory.map((step) => (
-                <div key={step.step} className="forecast-card iceberg-step-card">
-                  <div className="forecast-date">Day +{step.step}</div>
-                  <div className="forecast-value" style={{ fontSize: '1.25rem' }}>
-                    +{step.movement_km.toFixed(1)} km
-                  </div>
-                  <div className="iceberg-step-coord">
-                    {Math.abs(step.lat).toFixed(3)}° S, {Math.abs(step.lon).toFixed(3)}° {step.lon >= 0 ? 'E' : 'W'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* Detailed Iceberg Summary Block at the bottom */}
+      <div className="path-bottom-summary-section">
+        <IcebergSummary
+          iceberg={activeIceberg}
+          prediction={prediction}
+          date={todayDate}
+        />
       </div>
     </div>
   );
